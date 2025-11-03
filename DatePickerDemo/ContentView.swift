@@ -1,31 +1,46 @@
-//
-//  ContentView.swift
-//  DatePickerDemo
-//
-//  Created by Douglas Jasper on 2025-10-29.
+
 //
 
 import SwiftUI
 import UserNotifications
 
 struct ContentView: View {
-    // --- DatePicker state ---
+    // MARK: - General States
     @State private var selectedDate = Date()
-    
-    // --- Season Picker state ---
     @State private var selectedSeason = "Spring"
     private let seasons = ["Spring", "Summer", "Autumn", "Winter"]
-    
-    // --- Slider state ---
     @State private var age: Double = 25
-    
-    // --- Background color toggle ---
     @State private var isYellowBackground = false
-    
-    // --- Alert for confirmation ---
     @State private var showingAlert = false
     
-    // Date formatter
+    // MARK: - Pizza Order States (simple multi-component)
+    private let crusts = ["Thin", "Thick", "Stuffed"]
+    private let sauces = ["Tomato", "Pesto", "BBQ"]
+    private let toppings = ["Veggie", "Meatlovers", "Hawaiian", "Canadian"]
+    
+    @State private var selectedCrust = 0
+    @State private var selectedSauce = 0
+    @State private var selectedTopping = 0
+    @State private var pizzaOrderSummary = ""
+    
+    // MARK: - Dependent Picker States
+    private let pizzaCategories = ["Vegetarian", "Meat", "Specialty"]
+    private let pizzaOptionsDict: [String: [String]] = [
+        "Vegetarian": ["Margherita", "Veggie Delight", "Spinach & Feta"],
+        "Meat": ["Meat Lovers", "Pepperoni", "BBQ Chicken"],
+        "Specialty": ["Hawaiian", "Canadian", "Four Seasons"]
+    ]
+    
+    @State private var selectedCategory = 0
+    @State private var selectedOption = 0
+    @State private var dependentOrderSummary = ""
+    
+    // MARK: - Long Press Gesture States
+    @State private var longPressActive = false
+    @State private var longPressDetected = false
+    @State private var longPressMessage = ""
+    
+    // Date Formatter
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .long
@@ -38,7 +53,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 25) {
                     
-                    // --- Background Toggle Card ---
+                    // MARK: - Background Toggle Card
                     CardView(title: "Background Color") {
                         Toggle(isOn: $isYellowBackground) {
                             Text("Yellow Background")
@@ -51,7 +66,7 @@ struct ContentView: View {
                             .font(.subheadline)
                     }
                     
-                    // --- Date Picker Card ---
+                    // MARK: - DatePicker Card
                     CardView(title: "Select a Date") {
                         DatePicker("Pick a date:", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
                             .datePickerStyle(.graphical)
@@ -74,7 +89,7 @@ struct ContentView: View {
                         .padding(.top, 10)
                     }
                     
-                    // --- Season Picker Card ---
+                    // MARK: - Season Picker Card
                     CardView(title: "Favorite Season") {
                         Picker("Favorite Season", selection: $selectedSeason) {
                             ForEach(seasons, id: \.self) { season in
@@ -91,7 +106,7 @@ struct ContentView: View {
                             .foregroundColor(.green)
                     }
                     
-                    // --- Age Slider Card ---
+                    // MARK: - Age Slider Card
                     CardView(title: "Select Your Age") {
                         Slider(value: $age, in: 1...100, step: 1)
                             .tint(.purple)
@@ -101,6 +116,148 @@ struct ContentView: View {
                             .font(.headline)
                             .foregroundColor(.purple)
                     }
+                    
+                    // MARK: - Pizza Order Card (Simple Multi-Component Picker)
+                    CardView(title: "Pizza Order") {
+                        Text("Choose your pizza:")
+                            .font(.headline)
+                        
+                        HStack(spacing: 0) {
+                            Picker("Crust", selection: $selectedCrust) {
+                                ForEach(0..<crusts.count, id: \.self) { index in
+                                    Text(crusts[index]).tag(index)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                            
+                            Picker("Sauce", selection: $selectedSauce) {
+                                ForEach(0..<sauces.count, id: \.self) { index in
+                                    Text(sauces[index]).tag(index)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                            
+                            Picker("Topping", selection: $selectedTopping) {
+                                ForEach(0..<toppings.count, id: \.self) { index in
+                                    Text(toppings[index]).tag(index)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                        }
+                        .frame(height: 120)
+                        
+                        Button(action: placePizzaOrder) {
+                            Text("Place Pizza Order")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.red)
+                                .cornerRadius(12)
+                        }
+                        .padding(.top, 10)
+                        
+                        if !pizzaOrderSummary.isEmpty {
+                            Text(pizzaOrderSummary)
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 5)
+                        }
+                    }
+                    
+                    // MARK: - Dependent Pizza Picker Card
+                    CardView(title: "Dependent Pizza Picker") {
+                        Text("Select a category and pizza option")
+                            .font(.headline)
+                        
+                        HStack(spacing: 0) {
+                            Picker("Category", selection: $selectedCategory) {
+                                ForEach(0..<pizzaCategories.count, id: \.self) { index in
+                                    Text(pizzaCategories[index]).tag(index)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                            .onChange(of: selectedCategory) { _ in
+                                selectedOption = 0 // reset dependent picker
+                            }
+                            
+                            Picker("Option", selection: $selectedOption) {
+                                ForEach(0..<(pizzaOptionsDict[pizzaCategories[selectedCategory]]?.count ?? 0), id: \.self) { index in
+                                    Text(pizzaOptionsDict[pizzaCategories[selectedCategory]]![index])
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                        }
+                        .frame(height: 120)
+                        
+                        Button(action: placeDependentOrder) {
+                            Text("Place Dependent Order")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.green)
+                                .cornerRadius(12)
+                        }
+                        .padding(.top, 10)
+                        
+                        if !dependentOrderSummary.isEmpty {
+                            Text(dependentOrderSummary)
+                                .font(.headline)
+                                .multilineTextAlignment(.center)
+                                .foregroundColor(.green)
+                                .padding(.top, 5)
+                        }
+                    }
+                    
+                    // MARK: - Long Press Gesture Card
+                    CardView(title: "Long Press Gesture") {
+                        Text(longPressMessage.isEmpty ? "Long press the box below" : longPressMessage)
+                            .font(.headline)
+                            .foregroundColor(.purple)
+                            .multilineTextAlignment(.center)
+                            .padding(.bottom, 10)
+                        
+                        Rectangle()
+                            .fill(longPressActive ? Color.orange : Color.gray.opacity(0.5))
+                            .frame(height: 100)
+                            .cornerRadius(12)
+                            .overlay(
+                                Text("Hold me")
+                                    .foregroundColor(.white)
+                                    .bold()
+                            )
+                            .onLongPressGesture(minimumDuration: 1.0, pressing: { pressing in
+                                if pressing {
+                                    if !longPressDetected {
+                                        longPressActive = true
+                                        longPressMessage = "Pressing..."
+                                    }
+                                } else {
+                                    // User released finger
+                                    longPressActive = false
+                                    longPressDetected = false
+                                    longPressMessage = ""
+                                }
+                            }, perform: {
+                                // Long press threshold reached
+                                longPressDetected = true
+                                longPressMessage = "Long press detected!"
+                            })
+                    }
+                    
+                    Spacer()
                 }
                 .padding()
             }
@@ -108,7 +265,7 @@ struct ContentView: View {
             .background(isYellowBackground ? Color.yellow.opacity(0.3) : Color(.systemGroupedBackground))
             .animation(.easeInOut(duration: 0.3), value: isYellowBackground)
             .alert("Notification Scheduled", isPresented: $showingAlert) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {}
             } message: {
                 Text("A notification has been scheduled for \(formattedDate).")
             }
@@ -118,20 +275,26 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Notification Permission
+    // MARK: - Functions
+    private func placePizzaOrder() {
+        let crust = crusts[selectedCrust]
+        let sauce = sauces[selectedSauce]
+        let topping = toppings[selectedTopping]
+        pizzaOrderSummary = "You ordered a \(crust) crust pizza with \(sauce) sauce and \(topping) toppings."
+    }
+    
+    private func placeDependentOrder() {
+        let category = pizzaCategories[selectedCategory]
+        let option = pizzaOptionsDict[category]![selectedOption]
+        dependentOrderSummary = "You selected a \(option) pizza from the \(category) category."
+    }
+    
     private func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                print("Error requesting permission: \(error.localizedDescription)")
-            } else if granted {
-                print("Notification permission granted.")
-            } else {
-                print("Notification permission denied.")
-            }
+            if let error = error { print("Permission error: \(error.localizedDescription)") }
         }
     }
     
-    // MARK: - Schedule Notification
     private func scheduleNotification() {
         let content = UNMutableNotificationContent()
         content.title = "Reminder"
@@ -142,14 +305,8 @@ struct ContentView: View {
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
         
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
-        
         UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Error scheduling notification: \(error.localizedDescription)")
-            } else {
-                print("Notification scheduled for \(formattedDate)")
-                showingAlert = true
-            }
+            if error == nil { showingAlert = true }
         }
     }
 }
@@ -170,7 +327,6 @@ struct CardView<Content: View>: View {
                 .font(.title3)
                 .bold()
                 .padding(.bottom, 5)
-            
             content
         }
         .padding()
